@@ -42,10 +42,19 @@ val _ = Datatype `
 val _ = Datatype `state = <| locals : vname |-> int; code : fname |-> ((vname list) # com) |>`
 
 (* here the expressions don't cause side effects, so an update state doesn't need to be returned...want to change this so it is more C-like *)
+(* would like to use maybe monad operator so don't have to do so much case bashing *)
+(*can't seem to enable monad syntax. TODO *)
 val aval_def = Define `
   (aval (N n) s = SOME n) /\
   (aval (V x) s = FLOOKUP s x) /\
-  (aval (Plus a1 a2) s = aval a1 s + aval a2 s)`;
+  (aval (Plus a1 a2) s =
+    case (aval a1 s) of
+      | NONE => NONE (* should generate some exception??? *)
+      | SOME a => 
+        (case (aval a2 s) of
+          | NONE => NONE
+          | SOME b => SOME (a+b)))`;
+
 
 val bval_def = Define `
   (bval (Bc v) s = v) /\
