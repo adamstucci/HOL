@@ -1,6 +1,7 @@
 
 open HolKernel Parse boolLib bossLib;
 open stringLib integerTheory;
+open finite_mapTheory;
 val ect = BasicProvers.EVERY_CASE_TAC;
 
 val _ = new_theory "coimp";
@@ -12,7 +13,7 @@ of Nipkow and Klein's book Concrete Semantics.
 
 http://www.concrete-semantics.org/
 
-It adds function calls as well as coroutines
+It adds function calls as well as asymmetric coroutines
 
 *)
 
@@ -27,20 +28,23 @@ val _ = Datatype `
 
 val _ = Datatype `
   com = SKIP
-      | Assign vname aexp
+      | Assign vname aexp (* only arithmetic expressions can be assigned at the moment *) (* can I create an exp type from aexp and bexp??? *)
       | FuncDec fname (vname list) com (* list of parameters, i.e. binding occurences of the free variables in the rest of the function *)
-      | Call fname (vname list) (* list of arguments whose values are bound to the list of parameters *)
-      | TailCall fname (vname list) (* replaces the current frame with the functions frame....calling function lost *)
-      | MakeCo vname fname (vname list)
+      | Call fname (aexp list) (* list of arguments whose values are bound to the list of parameters *)
+      | TailCall fname (aexp list) (* replaces the current frame with the functions frame....calling function lost *)
+      | MakeCo vname fname (aexp list)
       | RunCo vname
       | Yield
       | Seq com com
       | If bexp com com
       | While bexp com`
 
+val _ = Datatype `state = <| locals : vname |-> int; code : fname |-> ((vname list) # com) |>`
+
+(* here the expressions don't cause side effects, so an update state doesn't need to be returned...want to change this so it is more C-like *)
 val aval_def = Define `
-  (aval (N n) s = n) /\
-  (aval (V x) s = s x) /\
+  (aval (N n) s = SOME n) /\
+  (aval (V x) s = FLOOKUP s x) /\
   (aval (Plus a1 a2) s = aval a1 s + aval a2 s)`;
 
 val bval_def = Define `
