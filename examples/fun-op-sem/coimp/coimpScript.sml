@@ -57,10 +57,25 @@ val aval_def = Define `
 
 
 val bval_def = Define `
-  (bval (Bc v) s = v) /\
-  (bval (Not b) s = ~bval b s) /\
-  (bval (And b1 b2) s = (bval b1 s /\ bval b2 s)) /\
-  (bval (Less a1 a2) s = (aval a1 s < aval a2 s))`;
+  (bval (Bc v) s = SOME v) /\
+  (bval (Not b) s =
+    case (bval b s) of
+      | NONE => NONE
+      | SOME res => SOME ~res) /\
+  (bval (And b1 b2) s =
+    case (bval b1 s) of
+      | NONE => NONE
+      | SOME res1 => 
+        (case (bval b2 s) of
+          | NONE => NONE
+          | SOME res2 => SOME (res1 /\ res2))) /\
+  (bval (Less a1 a2) s = 
+    case (aval a1 s) of
+      | NONE => NONE
+      | SOME res1 =>
+        (case (aval a2 s) of
+          | NONE => NONE
+          | SOME res2 => SOME (res1 < res2)))`;
 
 val STOP_def = Define `STOP x = x`;
 
