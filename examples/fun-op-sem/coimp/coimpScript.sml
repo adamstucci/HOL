@@ -37,9 +37,31 @@ val _ = Datatype `
       | Yield
       | Seq com com
       | If bexp com com
-      | While bexp com`
+      | While bexp com`;
 
-val _ = Datatype `state = <| locals : vname |-> int; code : fname |-> ((vname list) # com) |>`
+val _ = Datatype `state = <| locals : vname |-> int
+                           ; code : fname |-> ((vname list) # com)
+                           ; clock : num |>`; (* was alsoworking without semicolon. When/why do I need them? *)
+
+val _ = Datatype `
+  result = Error | TimeOut`;
+
+Definition fix_clock_def:
+  fix_clock old_s (res, new_s) =
+    (res, new_s with <|clock := if old_s.clock < new_s.clock then old_s.clock else new_s.clock |>)
+End
+
+Definition dec_clock_def:
+  dec_clock s =
+   s with clock := s.clock - 1
+End
+
+(*why is this needed*)
+(* what does ^ mean?? *)
+Definition empty_locals_def:
+   empty_locals s =
+     s with <| locals := FEMPTY |>
+End
 
 (* here the expressions don't cause side effects, so an update state doesn't need to be returned...want to change this so it is more C-like *)
 (* would like to use maybe monad operator so don't have to do so much case bashing *)
@@ -89,18 +111,26 @@ val STOP_def = Define `STOP x = x`;
    if-statement. *)
 
 Definition cval_def:
-  (cval SKIP s (t:num) = SOME (s,t)) /\
-  (cval (Assign x a) s t = SOME ((x =+ aval a s) s,t)) /\
-  (cval (Seq c1 c2) s t =
-    case cval c1 s t of
-    | NONE => NONE
-    | SOME (s2,t2) => cval c2 s2 (if t < t2 then t else t2)) /\
-  (cval (If b c1 c2) s t =
-    cval (if bval b s then c1 else c2) s t) /\
-  (cval (While b c) s t =
-    if bval b s then
-      if t = 0 then NONE else cval (Seq c (STOP (While b c))) s (t - 1)
-    else SOME (s,t))
+  (cval SKIP s = (NONE, s)) /\
+  (cval (Assign x a) s =
+    case (aval a s) of
+      | NONE => (SOME Error, s)
+      | SOME v => (NONE, s with locals := s.locals |+ (x, v))) /\
+  (cval (Seq c1 c2) s =
+    let (res, s1) = fix_clock s (cval c1 s) in (* evaluate under a fixed clock? *)
+    case res of
+      | NONE => cval c2 s1
+      | _ => (res, s1)) /\
+  (cval (If b c1 c2) s =
+    case bval b s of
+      | SOME v => if v then cval c1 s else cval c2 s
+      | _ => (SOME Error, s)) /\
+  (cval (While b c) s =
+    case bval b s of
+      | NONE => (Some Error, s)
+      | SOME v => if v then
+                    if s.clock = 0 then (SOME TimeOut, empty_locals s) else cval (Seq c (STOP (While b c))) (dec_clock s)
+                  else SOME (s,t))
 Termination
   WF_REL_TAC `inv_image (measure I LEX measure com_size)
                             (λ(c,s,t). (t,c))`
