@@ -51,13 +51,6 @@ Proof
         >- simp[com_lt]
 QED
 
-(* does this need to take in the clock *)
-(* don't make cval and pval mutually recursive...actually don't even need pval?? *)
-(* just use fold *)
-(* do I need to feed thorugh clock between statements??? *)
-(* sequencing isn't the problem with termination...it's about specific constructs like while *)
-(* lambda instead of helper function allows for closure...so the functions are technical different because they close the environment *)
-
 Definition cval_def:
     (cval 0 _ _ = NONE) /\
     (cval (t:num) (Assign v a) s = SOME ((v =+ aval a s) s)) /\
@@ -81,18 +74,6 @@ Termination
     simp[]
 End
 
-(* don't bother returning clock *)
-(* a bit denotational...the program is the state it evaluates to *)
-(* why do I like putting the clock first??? *)
-(* either get a NONE...only from timeout???? what about poor scoping *)
-(* the other language sort of has dynamic scope *)
-(* should I just ignore scoping rules...makes things a bit easier maybe for the purpose of this?? *)
-(* later I want to do a proof with scoping rules...that was the whole point of this detour *)
-(* literally just a fold??? *)
-
-(* sometimes don't want to split up conjuncts because they might be dependent *)
-(* want to keep the conjuncts in the assumption as proving one might help proving the other *)
-
 Definition pval_def:
     (pval 0 _ _ = NONE) /\
     (pval t cs s = FOLDL (\os code. (case os of
@@ -101,7 +82,38 @@ Definition pval_def:
     )) (SOME s) cs)
 End
 
-(* want to use the cval induction theorem so provably need to explicitly quantify *)
+Theorem foldl_concat_redundant_l:
+    !l. (!l1 l2 s f. l = (l1 ++ l2) ==> FOLDL f s l = FOLDL f (FOLDL f s l1) l2) 
+Proof
+    Induct_on `l1` (* inducting on l1 as it more matches the structure of ++ ??? *)
+        >- simp[]
+        >- rw[]
+QED
+
+Theorem foldl_concat_aux:
+    (!l1 l2 s f. FOLDL f s (l1 ++ l2) = FOLDL f (FOLDL f s l1) l2) 
+Proof
+    Induct_on `l1` (* inducting on l1 as it more matches the structure of ++ ??? *)
+        >- simp[]
+        >- rw[]
+QED
+
+Theorem foldl_concat:
+    FOLDL f s (l1 ++ l2) = FOLDL f (FOLDL f s l1) l2
+Proof
+    simp[foldl_concat_aux]
+QED
+
+Theorem foldl_none:
+    FOLDL (λos code. case os of NONE => NONE | SOME s' => cval (SUC n) code s') NONE l = NONE
+Proof
+    Induct_on `l`
+        >- simp[]
+        >- simp[FOLDL]
+QED
+
+(* STUCK ON THIS *)
+(* CVAL here is from this file, not impScript *)
 Theorem cval_idemp:
     !t c s t'. t <= t' /\ cval t c s <> NONE ==> cval t c s = cval t' c s 
 Proof
@@ -130,26 +142,13 @@ Proof
                     rfs[]
                 )
 
-        )
-
-            (* might have to now do an induction on cs1?? *)
-            simp[FOLDL]
-            gvs[cval_def, FOLDL]
-            first_x_assum $ qspecl_then [`(If b cs1 cs2)`, `s`] assume_tac
-        )
-
-        >- fs[cval_def]
-        >- fs[cval_def]
-
-        >- fs[cval_def]
-        >- (Cases_on `t'`
-                >- fs[]
-                >- simp[cval_def]
-        )
-        >- 
+        ) 
 QED
 
+(* IGNORE STUFF BELOW... *)
+
 (* try rephrase the statement *)
+(* PLEASE IGNORE *)
 Theorem pval_test:
     (pval t cs s <> NONE /\ t <= t') ==> (pval t cs s = pval t' cs s)
 Proof
@@ -285,79 +284,12 @@ Proof
         )
 QED
 
-(* want a lemma to make things easier *)
-(* this is a bit dumb..is just the definition *)
-Theorem seq_imp:
-    !c1 c2 s t. cval (Seq c1 c2) s t <> NONE ==> ?s' t'. cval c1 s t = SOME (s', t')
-Proof
-    rw[] >>
-    fs[impTheory.cval_def] >>
-    Cases_on `cval c1 s t`
-        >- fs[]
-        >- (simp[]
-            (* WANT THIS: FOLDL <the thing> v cs <> NONE ==> v <> NONE *)
+(* WANT THIS: FOLDL <the thing> v cs <> NONE ==> v <> NONE *)
             (* WANT THIS TOO: cval n h s <> NONE /\ n <= n' ==> cval n' h s = cval n h s *)
             (* want to get out the same state *)
             (* and also massge the induction hypothesis ...pval *)
-        )
-QED
 
 
-
-
-
-(* repeating existing list theories to get some intuition *)
-
-
-
-(* is really a property on foldl ... make more general *)
-(* express as a more natural induction on lists *)
-(* makes stripping a bit easier if move the quantifiers around *)
-(* don't think it mattered *)
-
-(* omg I proved it....inducting on l1 was the trick...but why did that work...try and do more granular than rewrite *)
-
-(* in interactive mode can use selectors to query the database....some key pattern on emacs to get it to show up *)
-(* e.g. can look for theorems that use both foldl and append*)
-(* or can do patterns to look for things that might occur in the code *)
-
-Theorem foldl_concat_redundant_l:
-    !l. (!l1 l2 s f. l = (l1 ++ l2) ==> FOLDL f s l = FOLDL f (FOLDL f s l1) l2) 
-Proof
-    Induct_on `l1` (* inducting on l1 as it more matches the structure of ++ ??? *)
-        >- simp[]
-        >- rw[]
-QED
-
-
-Theorem foldl_concat_aux:
-    (!l1 l2 s f. FOLDL f s (l1 ++ l2) = FOLDL f (FOLDL f s l1) l2) 
-Proof
-    Induct_on `l1` (* inducting on l1 as it more matches the structure of ++ ??? *)
-        >- simp[]
-        >- rw[]
-QED
-
-(* everything quantified different to having some things quantified *)
-(* so this statetement says something else...kind of like for every l1...a fixed suffix??? ...still a bit confused *)
-Theorem fold_test:
-    !l1. l = (l1 ++ l2) ==> FOLDL f s l = FOLDL f (FOLDL f s l1) l2
-Proof
-    Induct_on `l1` (* inducting on l1 as it more matches the structure of ++ ??? *)
-        >- simp[]
-        >- rw[]
-QED
-
-(* can use arbitray variables instead of explicitly quantifying *)
-(* universal quantification particularly useful for induction...but can always just generalize this version by the natural deduction rule since all the terms are arbitrary *)
-
-(* this exists in list theory....at least for foldr *)
-
-Theorem foldl_concat:
-    FOLDL f s (l1 ++ l2) = FOLDL f (FOLDL f s l1) l2
-Proof
-    simp[foldl_concat_aux]
-QED
 
 (* didn't make much progress with any of these attempts from before *)
     (* Induct
@@ -386,13 +318,7 @@ QED
 (* probably need to do induction on l here *)
 (* might need explicit quantification ...in which case might need explicit quantification of all the terms*)
 
-Theorem foldl_none:
-    FOLDL (λos code. case os of NONE => NONE | SOME s' => cval (SUC n) code s') NONE l = NONE
-Proof
-    Induct_on `l`
-        >- simp[]
-        >- simp[FOLDL]
-QED
+
 
 Theorem foldl_none_test:
     !l. FOLDL (λos code. case os of NONE => NONE | SOME s' => cval (SUC n) code s') NONE l = NONE
